@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<podlings>
+  <podling
+    name="ExampleOne"
+    status="current"
+    resource="example"
+    sponsor="Apache Incubator"
+    startdate="2025-01-01"
+  >
+    <description>An example podling for local testing</description>
+    <champion availid="jdoe">Jane Doe</champion>
+    <mentors>
+      <mentor username="mentor1">Mentor One</mentor>
+      <mentor username="mentor2">Mentor Two</mentor>
+    </mentors>
+  </podling>
+  <podling
+    name="ExampleTwo"
+    status="graduated"
+    resource="exampletwo"
+    sponsor="Apache Foo"
+    startdate="2023-01-01"
+    enddate="2024-06-01"
+  >
+    <description>A second example podling</description>
+    <champion availid="johndoe">John Doe</champion>
+    <mentors>
+      <mentor username="mentor3">Mentor Three</mentor>
+    </mentors>
+  </podling>
+  <podling
+    name="ExampleThree"
+    status="retired"
+    resource="examplethree"
+    sponsor="Incubator"
+    startdate="2022-01-01"
+    enddate="2023-05-01"
+  >
+    <description>A retired example podling</description>
+    <champion availid="janedoe">Jane Doe</champion>
+    <mentors>
+      <mentor username="mentor4">Mentor Four</mentor>
+    </mentors>
+  </podling>
+</podlings>
