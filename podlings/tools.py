@@ -194,9 +194,7 @@ def _is_active_in_year(item: Any, year: int) -> bool:
     return True
 
 
-def _resolve_active_year_bounds(
-    podlings: list[Any], *, start_year: int | None, end_year: int | None
-) -> tuple[int | None, int | None]:
+def _resolve_active_year_bounds(podlings: list[Any], *, start_year: int | None, end_year: int | None) -> tuple[int | None, int | None]:
     """Pick timeline bounds for active views when filters are omitted."""
 
     available_start_years = [_parse_year(item.startdate) for item in podlings]
@@ -227,9 +225,7 @@ def _build_active_timeline(
 ) -> list[dict[str, Any]]:
     """Build yearly active-population counts."""
 
-    resolved_start_year, resolved_end_year = _resolve_active_year_bounds(
-        podlings, start_year=start_year, end_year=end_year
-    )
+    resolved_start_year, resolved_end_year = _resolve_active_year_bounds(podlings, start_year=start_year, end_year=end_year)
     if resolved_start_year is None or resolved_end_year is None or resolved_start_year > resolved_end_year:
         return []
 
@@ -241,9 +237,7 @@ def _build_active_timeline(
     return timeline
 
 
-def _completion_name_lists(
-    podlings: list[Any], *, predicate: Any, status_filter: str | None
-) -> tuple[list[str], list[str], list[str]]:
+def _completion_name_lists(podlings: list[Any], *, predicate: Any, status_filter: str | None) -> tuple[list[str], list[str], list[str]]:
     """Collect graduated, retired, and combined completion name lists."""
 
     graduated = sorted(
@@ -595,9 +589,7 @@ def tool_completion_rate_over_time(arguments: dict[str, Any]) -> dict[str, Any]:
     podlings, meta = parse_podlings(source)
     podlings = _filter_podlings(podlings, sponsor_type=sponsor_type)
     active_timeline = {item["year"]: item["active"] for item in _build_active_timeline(podlings, start_year=start_year, end_year=end_year)}
-    completion_timeline = {
-        item["year"]: item for item in _build_completion_timeline(podlings, start_year=start_year, end_year=end_year)
-    }
+    completion_timeline = {item["year"]: item for item in _build_completion_timeline(podlings, start_year=start_year, end_year=end_year)}
 
     years = sorted(set(active_timeline) | set(completion_timeline))
     timeline = []
@@ -688,9 +680,7 @@ def tool_completed_podlings_in_range(arguments: dict[str, Any]) -> dict[str, Any
     podlings = _filter_podlings(podlings, sponsor_type=sponsor_type, statuses={"graduated", "retired"})
     graduated, retired, completed = _completion_name_lists(
         podlings,
-        predicate=lambda item: (
-            (completion_year := _parse_year(item.enddate)) is not None and start_year <= completion_year <= end_year
-        ),
+        predicate=lambda item: (completion_year := _parse_year(item.enddate)) is not None and start_year <= completion_year <= end_year,
         status_filter=status_filter,
     )
 
