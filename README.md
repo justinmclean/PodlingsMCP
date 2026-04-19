@@ -31,6 +31,18 @@ python3 server.py
 
 The server uses `stdio`, so it is intended to be launched by an MCP client.
 
+## Install
+
+```bash
+python3 -m pip install .
+```
+
+For development tools:
+
+```bash
+python3 -m pip install -e .[dev]
+```
+
 ## Test
 
 ```bash
@@ -59,8 +71,7 @@ Formatting and linting use `ruff`, including `make check-format` for CI-style fo
 {
   "mcpServers": {
     "podlings": {
-      "command": "python3",
-      "args": ["/Users/yourname/PodlingsMCP/server.py"]
+      "command": "apache-podlings-mcp"
     }
   }
 }
