@@ -366,271 +366,63 @@ Arguments:
 
 `source` is optional and defaults to the ASF Incubator `podlings.xml` URL.
 
-## Examples
+## Usage Examples
 
-List current incubator-sponsored podlings:
+These examples show natural-language requests an MCP client can answer with the tools below.
 
-```json
-{
-  "name": "list_current_podlings",
-  "arguments": {}
-}
-```
+### Current Podling Review Workflow
 
-Typical response:
+Use these when preparing for a regular review of the active Incubator podling roster:
 
-```json
-{
-  "returned": 1,
-  "total_matching": 1,
-  "podlings": [
-    {
-      "name": "ExampleOne",
-      "status": "current",
-      "sponsor_type": "incubator"
-    }
-  ]
-}
-```
+- "Show me the current Incubator-sponsored podlings."
+- "Summarize the current Incubator podlings, including how many have descriptions, sponsors, champions, and mentors listed."
+- "Which current podlings have unusually low mentor coverage?"
+- "Give me the full podlings.xml record for PodlingFoo."
 
-Analyze graduation timing for project-sponsored podlings:
+This gives reviewers a quick view of the active roster, basic metadata coverage, and mentor coverage without needing to inspect `podlings.xml` directly.
 
-```json
-{
-  "name": "graduation_time_over_time",
-  "arguments": {
-    "sponsor_type": "project"
-  }
-}
-```
+### Cohort And Lifecycle Review
 
-Analyze yearly completion counts for project-sponsored podlings:
+Use these when trying to understand how a group of podlings moved through incubation over time:
 
-```json
-{
-  "name": "completion_count_over_time",
-  "arguments": {
-    "sponsor_type": "project"
-  }
-}
-```
+- "How many Incubator-sponsored podlings started each year from 2020 onwards?"
+- "Which podlings started in 2022?"
+- "Show the active podling count by year from 2020 to 2025."
+- "Which podlings were active during 2023?"
 
-Typical response:
+This connects yearly trends to the specific podlings behind those trends.
 
-```json
-{
-  "years": [
-    {
-      "year": 2024,
-      "graduated": 1,
-      "retired": 0,
-      "completed": 1
-    }
-  ],
-  "overall_completed": 1,
-  "overall_graduated": 1,
-  "overall_retired": 0
-}
-```
+### Completion And Graduation Review
 
-Analyze yearly start counts for incubator-sponsored podlings:
+Use these when reviewing graduation and retirement outcomes for a period:
 
-```json
-{
-  "name": "podlings_started_over_time",
-  "arguments": {}
-}
-```
+- "Show yearly Incubator podling completions since 2020, split into graduations and retirements."
+- "What was the graduation rate for completed podlings each year from 2020 to 2025?"
+- "Which podlings completed between 2023 and 2024?"
+- "Which podlings retired in 2023?"
 
-Typical response:
+This is useful for turning trend charts into a concrete list of podlings to discuss.
 
-```json
-{
-  "years": [
-    {
-      "year": 2022,
-      "started": 1
-    },
-    {
-      "year": 2025,
-      "started": 1
-    }
-  ],
-  "overall_started": 2
-}
-```
+### Duration Trend Review
 
-Look up which podlings were active in a specific year:
+Use these when reviewing how long podlings take to reach terminal outcomes:
 
-```json
-{
-  "name": "active_podlings_in_year",
-  "arguments": {
-    "year": 2023
-  }
-}
-```
+- "How long did graduated podlings take to graduate each year, including median and percentile timings?"
+- "Show retirement timing by year for podlings that retired after 2020."
+- "What is the average and median time to retirement for recent retired podlings?"
 
-Typical response:
+This separates completion volume from time-to-outcome trends.
 
-```json
-{
-  "year": 2023,
-  "active": ["ExampleThree"],
-  "active_count": 1
-}
-```
+### Source Troubleshooting Workflow
 
-Look up which podlings completed in a specific year:
+Use these when a local XML file or alternate URL does not produce the expected results:
 
-```json
-{
-  "name": "completed_podlings_by_year",
-  "arguments": {
-    "year": 2024,
-    "sponsor_type": "project"
-  }
-}
-```
+- "Inspect `/path/to/podlings.xml` and show me the source metadata plus a few parsed records."
+- "List the first 10 normalized podling records from `/path/to/podlings.xml`."
+- "In `/path/to/podlings.xml`, show me the parsed record for ExampleOne."
+- "Using `/path/to/podlings.xml`, show yearly completion counts from 2020 onwards."
 
-Typical response:
-
-```json
-{
-  "year": 2024,
-  "status_filter": "all",
-  "graduated": ["ExampleTwo"],
-  "retired": [],
-  "completed": ["ExampleTwo"],
-  "completed_count": 1
-}
-```
-
-Look up which podlings completed in a year range:
-
-```json
-{
-  "name": "completed_podlings_in_range",
-  "arguments": {
-    "start_year": 2023,
-    "end_year": 2024
-  }
-}
-```
-
-Typical response:
-
-```json
-{
-  "start_year": 2023,
-  "end_year": 2024,
-  "status_filter": "all",
-  "graduated": [],
-  "retired": ["ExampleThree"],
-  "completed": ["ExampleThree"],
-  "completed_count": 1
-}
-```
-
-Look up just the podlings that retired in a specific year:
-
-```json
-{
-  "name": "retired_podlings_by_year",
-  "arguments": {
-    "year": 2023
-  }
-}
-```
-
-Typical response:
-
-```json
-{
-  "year": 2023,
-  "status_filter": "retired",
-  "graduated": [],
-  "retired": ["ExampleThree"],
-  "completed": ["ExampleThree"],
-  "completed_count": 1
-}
-```
-
-Look up just the podlings that graduated in a specific year:
-
-```json
-{
-  "name": "graduated_podlings_by_year",
-  "arguments": {
-    "year": 2024,
-    "sponsor_type": "project"
-  }
-}
-```
-
-Typical response:
-
-```json
-{
-  "year": 2024,
-  "status_filter": "graduated",
-  "graduated": ["ExampleTwo"],
-  "retired": [],
-  "completed": ["ExampleTwo"],
-  "completed_count": 1
-}
-```
-
-Typical response:
-
-```json
-{
-  "years": [
-    {
-      "year": 2024,
-      "graduated": 1,
-      "total_months_to_graduate": 17,
-      "average_months_to_graduate": 17.0,
-      "median_months_to_graduate": 17.0,
-      "p75_months_to_graduate": 17.0,
-      "p90_months_to_graduate": 17.0
-    }
-  ],
-  "overall_graduated": 1,
-  "overall_average_months_to_graduate": 17.0
-}
-```
-
-Analyze retirement timing for incubator-sponsored podlings after 2020:
-
-```json
-{
-  "name": "time_to_retirement_over_time",
-  "arguments": {
-    "start_year": 2021
-  }
-}
-```
-
-Typical response:
-
-```json
-{
-  "years": [
-    {
-      "year": 2023,
-      "retired": 1,
-      "total_months_to_retire": 16,
-      "average_months_to_retire": 16.0,
-      "median_months_to_retire": 16.0,
-      "p75_months_to_retire": 16.0,
-      "p90_months_to_retire": 16.0
-    }
-  ],
-  "overall_retired": 1,
-  "overall_average_months_to_retire": 16.0
-}
-```
+This helps separate source-loading issues from filtering or analytics questions.
 
 ## Source examples
 
