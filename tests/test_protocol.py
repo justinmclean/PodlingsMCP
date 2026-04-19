@@ -75,8 +75,15 @@ class ProtocolHelperTests(unittest.TestCase):
 
         emit_mock.assert_called_once()
         payload = emit_mock.call_args.args[0]
-        result = json.loads(payload["result"]["content"][0]["text"])
-        self.assertEqual(result["podling"]["name"], "ExampleOne")
+        self.assertEqual(payload["result"]["structuredContent"]["podling"]["name"], "ExampleOne")
+
+    def test_tool_response_includes_structured_content_for_json_payloads(self) -> None:
+        from podlings.protocol import tool_response
+
+        response = tool_response({"ok": True})
+
+        self.assertEqual(response["structuredContent"], {"ok": True})
+        self.assertEqual(json.loads(response["content"][0]["text"]), {"ok": True})
 
     def test_handle_tools_call_emits_unknown_tool_error(self) -> None:
         with patch("podlings.protocol.emit") as emit_mock:

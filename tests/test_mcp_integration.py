@@ -98,9 +98,11 @@ class McpProtocolTests(unittest.TestCase):
             ]
         )
 
-        payload = json.loads(responses[1]["result"]["content"][0]["text"])
-        self.assertEqual(payload["podling"]["name"], "ExampleOne")
-        self.assertEqual(payload["podling"]["mentors"], ["Mentor One", "Mentor Two"])
+        self.assertEqual(responses[1]["result"]["structuredContent"]["podling"]["name"], "ExampleOne")
+        self.assertEqual(
+            responses[1]["result"]["structuredContent"]["podling"]["mentors"],
+            ["Mentor One", "Mentor Two"],
+        )
 
     def test_tools_call_unknown_tool_returns_jsonrpc_error(self) -> None:
         responses = self._run_session(
@@ -141,7 +143,7 @@ class McpProtocolTests(unittest.TestCase):
         )
 
         self.assertTrue(responses[1]["result"]["isError"])
-        payload = json.loads(responses[1]["result"]["content"][0]["text"])
+        payload = responses[1]["result"]["structuredContent"]
         self.assertFalse(payload["ok"])
         self.assertIn("MissingPodling", payload["error"])
 

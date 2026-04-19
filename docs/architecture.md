@@ -15,6 +15,7 @@ The project is split into three main runtime modules plus a thin entrypoint:
   - JSON-RPC response helpers
   - stdio request loop
   - tool dispatch
+  - MCP tool response wrapping with `structuredContent` and a JSON text fallback
 - `server.py`
   - compatibility facade and executable entrypoint
 
@@ -31,5 +32,5 @@ The tests mirror the runtime split:
 
 - `podlings/data.py` should stay free of MCP-specific concerns.
 - `podlings/tools.py` should contain business logic, but not stdio/protocol handling.
-- `podlings/protocol.py` should only orchestrate requests and responses, not own analytics logic.
+- `podlings/protocol.py` should only orchestrate requests and responses, not own analytics logic. Structured tool results are returned as both MCP `structuredContent` and a JSON text fallback for clients that only read `content`.
 - `server.py` exists so the executable surface stays stable even if internal modules continue to evolve.
