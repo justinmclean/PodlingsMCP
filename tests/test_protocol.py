@@ -6,6 +6,8 @@ from unittest.mock import patch
 from podlings.protocol import (
     emit,
     handle_initialize,
+    handle_message,
+    handle_payload,
     handle_tools_call,
     handle_tools_list,
     main,
@@ -98,6 +100,15 @@ class ProtocolHelperTests(unittest.TestCase):
 
         payload = emit_mock.call_args.args[0]
         self.assertEqual(payload["error"]["code"], -32602)
+        self.assertEqual(payload["error"]["data"]["field"], "arguments")
+
+    def test_handle_tools_call_requires_string_tool_name(self) -> None:
+        with patch("podlings.protocol.emit") as emit_mock:
+            handle_tools_call(5, {"name": 123, "arguments": {}})
+
+        payload = emit_mock.call_args.args[0]
+        self.assertEqual(payload["error"]["code"], -32602)
+        self.assertEqual(payload["error"]["data"]["field"], "name")
 
     def test_handle_tools_call_emits_handler_exception_payload(self) -> None:
         with patch("podlings.protocol.emit") as emit_mock:
@@ -106,16 +117,72 @@ class ProtocolHelperTests(unittest.TestCase):
         payload = emit_mock.call_args.args[0]
         self.assertTrue(payload["result"]["isError"])
 
+    def test_handle_message_rejects_non_object_request(self) -> None:
+        payload = handle_message("not a request")
+
+        assert payload is not None
+        self.assertEqual(payload["error"]["code"], -32600)
+
+    def test_handle_message_rejects_missing_jsonrpc_version(self) -> None:
+        payload = handle_message({"id": 1, "method": "tools/list", "params": {}})
+
+        assert payload is not None
+        self.assertEqual(payload["error"]["code"], -32600)
+        self.assertEqual(payload["error"]["data"]["field"], "jsonrpc")
+
+    def test_handle_message_rejects_non_string_method(self) -> None:
+        payload = handle_message({"jsonrpc": "2.0", "id": 1, "method": 123, "params": {}})
+
+        assert payload is not None
+        self.assertEqual(payload["error"]["code"], -32600)
+        self.assertEqual(payload["error"]["data"]["field"], "method")
+
+    def test_handle_message_rejects_non_object_params(self) -> None:
+        payload = handle_message({"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": []})
+
+        assert payload is not None
+        self.assertEqual(payload["error"]["code"], -32602)
+        self.assertEqual(payload["error"]["data"]["field"], "params")
+
+    def test_handle_message_rejects_invalid_id_type(self) -> None:
+        payload = handle_message({"jsonrpc": "2.0", "id": True, "method": "tools/list", "params": {}})
+
+        assert payload is not None
+        self.assertEqual(payload["id"], None)
+        self.assertEqual(payload["error"]["code"], -32600)
+
+    def test_handle_payload_supports_jsonrpc_batches(self) -> None:
+        payload = handle_payload(
+            [
+                {"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}},
+                {"jsonrpc": "2.0", "method": "notifications/initialized"},
+                {"jsonrpc": "2.0", "id": 2, "method": "unknown", "params": {}},
+            ]
+        )
+
+        assert isinstance(payload, list)
+        self.assertEqual(len(payload), 2)
+        self.assertIn("result", payload[0])
+        self.assertEqual(payload[1]["error"]["code"], -32601)
+
+    def test_handle_payload_rejects_empty_batch(self) -> None:
+        payload = handle_payload([])
+
+        assert payload is not None
+        assert not isinstance(payload, list)
+        self.assertEqual(payload["error"]["code"], -32600)
+
     def test_main_ignores_blank_lines(self) -> None:
         with patch("podlings.protocol.sys.stdin", io.StringIO("\n")):
             self.assertEqual(main(), 0)
 
-    def test_main_dispatches_initialize(self) -> None:
+    def test_main_emits_initialize_response(self) -> None:
         with patch("podlings.protocol.sys.stdin", io.StringIO('{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n')):
-            with patch("podlings.protocol.handle_initialize") as initialize_mock:
+            with patch("podlings.protocol.emit") as emit_mock:
                 self.assertEqual(main(), 0)
 
-        initialize_mock.assert_called_once()
+        payload = emit_mock.call_args.args[0]
+        self.assertEqual(payload["result"]["serverInfo"]["name"], "podlings-mcp")
 
     def test_main_ignores_initialized_notification(self) -> None:
         with patch("podlings.protocol.sys.stdin", io.StringIO('{"jsonrpc":"2.0","method":"notifications/initialized"}\n')):
@@ -124,18 +191,19 @@ class ProtocolHelperTests(unittest.TestCase):
 
         emit_mock.assert_not_called()
 
-    def test_main_dispatches_tools_list_and_call(self) -> None:
+    def test_main_emits_tools_list_and_call_responses(self) -> None:
         stdin = io.StringIO(
             '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}\n'
             '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_podling","arguments":{"source":"%s","name":"ExampleOne"}}}\n'
             % str(SAMPLE_XML)
         )
         with patch("podlings.protocol.sys.stdin", stdin):
-            with patch("podlings.protocol.handle_tools_list") as list_mock, patch("podlings.protocol.handle_tools_call") as call_mock:
+            with patch("podlings.protocol.emit") as emit_mock:
                 self.assertEqual(main(), 0)
 
-        list_mock.assert_called_once()
-        call_mock.assert_called_once()
+        self.assertEqual(emit_mock.call_count, 2)
+        self.assertIn("tools", emit_mock.call_args_list[0].args[0]["result"])
+        self.assertEqual(emit_mock.call_args_list[1].args[0]["result"]["structuredContent"]["podling"]["name"], "ExampleOne")
 
     def test_main_emits_unknown_method_error(self) -> None:
         with patch("podlings.protocol.sys.stdin", io.StringIO('{"jsonrpc":"2.0","id":1,"method":"unknown"}\n')):
@@ -147,10 +215,38 @@ class ProtocolHelperTests(unittest.TestCase):
 
     def test_main_emits_internal_error_payload(self) -> None:
         with patch("podlings.protocol.sys.stdin", io.StringIO('{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}\n')):
-            with patch("podlings.protocol.handle_tools_list", side_effect=RuntimeError("boom")):
+            with patch("podlings.protocol.list_tools_payload", side_effect=RuntimeError("boom")):
                 with patch("podlings.protocol.emit") as emit_mock:
                     self.assertEqual(main(), 0)
 
         payload = emit_mock.call_args.args[0]
         self.assertEqual(payload["error"]["code"], -32603)
         self.assertIn("traceback", payload["error"]["data"])
+
+    def test_main_emits_parse_error_for_malformed_json(self) -> None:
+        with patch("podlings.protocol.sys.stdin", io.StringIO('{"jsonrpc":"2.0","id":1,"method":"tools/list"\n')):
+            with patch("podlings.protocol.emit") as emit_mock:
+                self.assertEqual(main(), 0)
+
+        payload = emit_mock.call_args.args[0]
+        self.assertEqual(payload["id"], None)
+        self.assertEqual(payload["error"]["code"], -32700)
+
+    def test_main_emits_batch_response_array(self) -> None:
+        stdin = io.StringIO(
+            json.dumps(
+                [
+                    {"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}},
+                    {"jsonrpc": "2.0", "method": "notifications/initialized"},
+                    {"jsonrpc": "2.0", "id": 2, "method": "missing", "params": {}},
+                ]
+            )
+            + "\n"
+        )
+        with patch("podlings.protocol.sys.stdin", stdin):
+            with patch("podlings.protocol.emit") as emit_mock:
+                self.assertEqual(main(), 0)
+
+        payload = emit_mock.call_args.args[0]
+        self.assertIsInstance(payload, list)
+        self.assertEqual(len(payload), 2)

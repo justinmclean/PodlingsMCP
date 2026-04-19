@@ -3,6 +3,7 @@ import subprocess
 import sys
 import unittest
 from pathlib import Path
+from typing import Any
 
 from tests.fixtures import SAMPLE_XML
 
@@ -11,7 +12,7 @@ SERVER_SCRIPT = ROOT / "server.py"
 
 
 class McpProtocolTests(unittest.TestCase):
-    def _run_session(self, messages: list[dict]) -> list[dict]:
+    def _run_session(self, messages: list[Any]) -> list[Any]:
         proc = subprocess.Popen(
             [sys.executable, str(SERVER_SCRIPT)],
             cwd=str(ROOT),
@@ -28,6 +29,40 @@ class McpProtocolTests(unittest.TestCase):
 
             for message in messages:
                 proc.stdin.write(json.dumps(message) + "\n")
+                proc.stdin.flush()
+                responses.append(json.loads(proc.stdout.readline()))
+
+            proc.stdin.close()
+            proc.terminate()
+            proc.wait(timeout=5)
+            proc.stdout.close()
+            proc.stderr.close()
+            return responses
+        finally:
+            if proc.stdout and not proc.stdout.closed:
+                proc.stdout.close()
+            if proc.stderr and not proc.stderr.closed:
+                proc.stderr.close()
+            if proc.poll() is None:
+                proc.kill()
+
+    def _run_raw_session(self, lines: list[str]) -> list[Any]:
+        proc = subprocess.Popen(
+            [sys.executable, str(SERVER_SCRIPT)],
+            cwd=str(ROOT),
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        try:
+            responses = []
+            assert proc.stdin is not None
+            assert proc.stdout is not None
+            assert proc.stderr is not None
+
+            for line in lines:
+                proc.stdin.write(line + "\n")
                 proc.stdin.flush()
                 responses.append(json.loads(proc.stdout.readline()))
 
@@ -156,3 +191,46 @@ class McpProtocolTests(unittest.TestCase):
 
         self.assertEqual(responses[0]["error"]["code"], -32601)
         self.assertIn("Method 'unknown/method' not found", responses[0]["error"]["message"])
+
+    def test_jsonrpc_batch_returns_response_array(self) -> None:
+        responses = self._run_session(
+            [
+                [
+                    {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2024-11-05"}},
+                    {"jsonrpc": "2.0", "method": "notifications/initialized"},
+                    {"jsonrpc": "2.0", "id": 2, "method": "unknown/method", "params": {}},
+                ]
+            ]
+        )
+
+        batch_response = responses[0]
+        self.assertIsInstance(batch_response, list)
+        assert isinstance(batch_response, list)
+        self.assertEqual(len(batch_response), 2)
+        self.assertEqual(batch_response[0]["result"]["serverInfo"]["name"], "podlings-mcp")
+        self.assertEqual(batch_response[1]["error"]["code"], -32601)
+
+    def test_malformed_json_returns_parse_error(self) -> None:
+        responses = self._run_raw_session(['{"jsonrpc":"2.0","id":1,"method":"tools/list"'])
+
+        response = responses[0]
+        assert isinstance(response, dict)
+        self.assertEqual(response["id"], None)
+        self.assertEqual(response["error"]["code"], -32700)
+
+    def test_invalid_request_shape_returns_structured_error(self) -> None:
+        responses = self._run_session([{"jsonrpc": "2.0", "id": True, "method": "tools/list", "params": {}}])
+
+        response = responses[0]
+        assert isinstance(response, dict)
+        self.assertEqual(response["id"], None)
+        self.assertEqual(response["error"]["code"], -32600)
+        self.assertEqual(response["error"]["data"]["field"], "id")
+
+    def test_invalid_params_shape_returns_structured_error(self) -> None:
+        responses = self._run_session([{"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": []}])
+
+        response = responses[0]
+        assert isinstance(response, dict)
+        self.assertEqual(response["error"]["code"], -32602)
+        self.assertEqual(response["error"]["data"]["field"], "params")

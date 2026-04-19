@@ -50,6 +50,7 @@ python3 server.py
 ```
 
 The server uses `stdio`, so it is intended to be launched by an MCP client.
+It accepts standard JSON-RPC 2.0 request objects and non-empty batches, ignores notifications, and returns structured JSON-RPC errors for malformed input, invalid request shapes, unknown methods, and invalid MCP tool parameters.
 
 ## Test
 
