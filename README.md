@@ -23,14 +23,6 @@ The default ASF podlings XML source is cached locally for 24 hours. Set `PODLING
 
 - Python 3.12+
 
-## Run
-
-```bash
-python3 server.py
-```
-
-The server uses `stdio`, so it is intended to be launched by an MCP client.
-
 ## Install
 
 ```bash
@@ -42,6 +34,22 @@ For development tools:
 ```bash
 python3 -m pip install -e .[dev]
 ```
+
+## Run
+
+After installation, run the stdio MCP server with:
+
+```bash
+podlings-mcp
+```
+
+For local development without installing first, you can still run:
+
+```bash
+python3 server.py
+```
+
+The server uses `stdio`, so it is intended to be launched by an MCP client.
 
 ## Test
 
@@ -71,11 +79,13 @@ Formatting and linting use `ruff`, including `make check-format` for CI-style fo
 {
   "mcpServers": {
     "podlings": {
-      "command": "apache-podlings-mcp"
+      "command": "podlings-mcp"
     }
   }
 }
 ```
+
+The package also keeps `apache-podlings-mcp` as a backwards-compatible command alias.
 
 ## Concepts and Defaults
 

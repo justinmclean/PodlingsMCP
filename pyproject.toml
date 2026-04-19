@@ -8,9 +8,19 @@ version = "0.1.0"
 description = "MCP server for querying Apache Incubator podlings.xml data."
 readme = "README.md"
 requires-python = ">=3.12"
+license = { text = "Apache-2.0" }
+keywords = ["apache", "incubator", "mcp", "podlings"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Software Development",
+]
 dependencies = []
 
 [project.scripts]
+podlings-mcp = "podlings.protocol:main"
 apache-podlings-mcp = "podlings.protocol:main"
 
 [project.optional-dependencies]
