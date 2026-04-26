@@ -113,6 +113,7 @@ class McpProtocolTests(unittest.TestCase):
                 "retired_podlings_by_year",
                 "graduation_time_over_time",
                 "time_to_retirement_over_time",
+                "reporting_schedule",
                 "raw_podlings_xml_info",
             ],
         )

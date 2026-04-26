@@ -47,6 +47,38 @@ RETIREMENT_TIMELINE_XML = dedent(
     """
 )
 
+REPORTING_XML = dedent(
+    """\
+    <?xml version="1.0" encoding="UTF-8"?>
+    <podlings>
+      <podling name="QuarterlyOne" status="current" sponsor="Incubator" startdate="2024-01-15">
+        <description>Quarterly reporting podling</description>
+        <reporting group="1" />
+      </podling>
+      <podling name="MonthlyFresh" status="current" sponsor="Incubator" startdate="2026-02-10">
+        <description>New monthly podling</description>
+        <reporting group="1" monthly="true">March, April, May</reporting>
+      </podling>
+      <podling name="MonthlyStale" status="current" sponsor="Apache Incubator" startdate="2025-11-01">
+        <description>Monthly schedule that has already elapsed</description>
+        <reporting group="3" monthly="true">December, January, February</reporting>
+      </podling>
+      <podling name="MonthlyFallback" status="current" sponsor="Apache Incubator" startdate="2025-10-01">
+        <description>Monthly podling with no explicit reporting periods</description>
+        <reporting group="1" monthly="true" />
+      </podling>
+      <podling name="QuarterlyTwo" status="current" sponsor="Apache Incubator" startdate="2025-02-01">
+        <description>Incubator-sponsored quarterly group two podling</description>
+        <reporting group="2" />
+      </podling>
+      <podling name="ProjectQuarterly" status="current" sponsor="Apache Foo" startdate="2025-02-01">
+        <description>Project-sponsored quarterly podling</description>
+        <reporting group="2" />
+      </podling>
+    </podlings>
+    """
+)
+
 
 @contextmanager
 def temporary_xml_file(xml_text: str) -> Iterator[str]:

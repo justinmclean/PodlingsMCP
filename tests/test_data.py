@@ -16,7 +16,7 @@ from podlings.data import (
     _split_people,
     parse_podlings,
 )
-from tests.fixtures import PARSING_EDGE_CASES_XML, SAMPLE_XML, temporary_xml_file
+from tests.fixtures import PARSING_EDGE_CASES_XML, REPORTING_XML, SAMPLE_XML, temporary_xml_file
 
 
 class SponsorClassificationTests(unittest.TestCase):
@@ -67,6 +67,19 @@ class PodlingParsingTests(unittest.TestCase):
         self.assertEqual(podlings[0].sponsor_type, "incubator")
         self.assertEqual(podlings[1].sponsor_type, "incubator")
         self.assertEqual(podlings[2].sponsor_type, "project")
+
+    def test_parse_podlings_extracts_reporting_metadata(self) -> None:
+        with temporary_xml_file(REPORTING_XML) as xml_path:
+            podlings, _ = parse_podlings(xml_path)
+
+        monthly = next(podling for podling in podlings if podling.name == "MonthlyFresh")
+        quarterly = next(podling for podling in podlings if podling.name == "QuarterlyOne")
+        self.assertEqual(monthly.reporting_group, 1)
+        self.assertTrue(monthly.reporting_monthly)
+        self.assertEqual(monthly.reporting_periods, ["March", "April", "May"])
+        self.assertEqual(quarterly.reporting_group, 1)
+        self.assertFalse(quarterly.reporting_monthly)
+        self.assertEqual(quarterly.reporting_periods, [])
 
     def test_parse_podlings_raises_for_malformed_xml(self) -> None:
         with tempfile.NamedTemporaryFile("w", suffix=".xml", delete=False) as handle:

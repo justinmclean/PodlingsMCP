@@ -70,6 +70,7 @@ class ProtocolHelperTests(unittest.TestCase):
         self.assertIn("retired_podlings_by_year", tool_names)
         self.assertIn("completion_count_over_time", tool_names)
         self.assertIn("time_to_retirement_over_time", tool_names)
+        self.assertIn("reporting_schedule", tool_names)
 
     def test_handle_tools_call_emits_success_payload(self) -> None:
         with patch("podlings.protocol.emit") as emit_mock:

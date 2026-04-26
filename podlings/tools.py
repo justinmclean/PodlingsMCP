@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import calendar
 from collections import Counter
 from dataclasses import asdict
+from datetime import date
 from typing import Any
 
 from . import schemas
@@ -13,9 +15,31 @@ from .data import (
     _build_duration_stats,
     _calculate_percentile,
     _months_between,
+    _parse_date,
     _parse_year,
     parse_podlings,
 )
+
+MONTH_NAMES = (
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+)
+MONTH_NAME_TO_NUMBER = {name.lower(): index for index, name in enumerate(MONTH_NAMES, start=1)}
+REPORTING_GROUP_MONTHS = {
+    1: (1, 4, 7, 10),
+    2: (2, 5, 8, 11),
+    3: (3, 6, 9, 12),
+}
 
 
 def require_string(arguments: dict[str, Any], key: str) -> str:
@@ -54,6 +78,51 @@ def resolve_sponsor_type(arguments: dict[str, Any], default: str = "incubator") 
         choices = ", ".join(sorted(VALID_SPONSOR_TYPES))
         raise ValueError(f"'sponsor_type' must be one of: {choices}")
     return normalized
+
+
+def _resolve_as_of_date(arguments: dict[str, Any]) -> date:
+    """Resolve the schedule inspection date, defaulting to today."""
+
+    value = optional_string(arguments, "as_of_date")
+    if value is None:
+        return date.today()
+    parsed = _parse_date(value)
+    if parsed is None:
+        raise ValueError("'as_of_date' must be an ISO date in YYYY-MM-DD format")
+    return parsed
+
+
+def _third_wednesday(year: int, month: int) -> date:
+    """Return the third Wednesday for the given month."""
+
+    wednesdays = [
+        day
+        for week in calendar.monthcalendar(year, month)
+        if (day := week[calendar.WEDNESDAY]) != 0
+    ]
+    return date(year, month, wednesdays[2])
+
+
+def _resolve_report_month(arguments: dict[str, Any], *, default_date: date) -> date:
+    """Resolve the reporting month, defaulting to the active reporting cycle."""
+
+    value = optional_string(arguments, "report_month")
+    if value is None:
+        cutoff = _third_wednesday(default_date.year, default_date.month)
+        if default_date > cutoff:
+            if default_date.month == 12:
+                return date(default_date.year + 1, 1, 1)
+            return date(default_date.year, default_date.month + 1, 1)
+        return default_date.replace(day=1)
+
+    parts = value.split("-")
+    if len(parts) != 2 or not all(part.isdigit() for part in parts):
+        raise ValueError("'report_month' must be in YYYY-MM format")
+
+    year, month = int(parts[0]), int(parts[1])
+    if month < 1 or month > 12:
+        raise ValueError("'report_month' must be in YYYY-MM format")
+    return date(year, month, 1)
 
 
 def _resolve_year_filters(arguments: dict[str, Any]) -> tuple[int | None, int | None]:
@@ -115,6 +184,133 @@ def _filter_podlings(
     if statuses is None:
         return filtered
     return [item for item in filtered if (item.status or "").lower() in statuses]
+
+
+def _period_payload(year: int, month: int) -> dict[str, Any]:
+    """Build a normalized reporting-period payload."""
+
+    last_day = calendar.monthrange(year, month)[1]
+    return {
+        "year": year,
+        "month": month,
+        "label": f"{MONTH_NAMES[month - 1]} {year}",
+        "start_date": f"{year:04d}-{month:02d}-01",
+        "end_date": f"{year:04d}-{month:02d}-{last_day:02d}",
+    }
+
+
+def _monthly_period_entries(item: Any, anchor: date) -> list[dict[str, Any]]:
+    """Return nearby monthly reporting periods for a monthly podling."""
+
+    start = _parse_date(item.startdate) or anchor
+    start_index = start.year * 12 + start.month - 1
+    anchor_index = anchor.year * 12 + anchor.month - 1
+    first_index = max(start_index, anchor_index - 12)
+    last_index = anchor_index + 12
+
+    entries = []
+    for month_index in range(first_index, last_index + 1):
+        year, month_zero_based = divmod(month_index, 12)
+        entries.append(_period_payload(year, month_zero_based + 1))
+    return entries
+
+
+def _reporting_period_entries(item: Any) -> list[dict[str, Any]]:
+    """Return explicit monthly reporting periods derived from podlings.xml."""
+
+    periods = item.reporting_periods or []
+    start = _parse_date(item.startdate)
+    if not periods or start is None:
+        return []
+
+    months = [MONTH_NAME_TO_NUMBER.get(period.lower()) for period in periods]
+    if any(month is None for month in months):
+        return []
+
+    entries: list[dict[str, Any]] = []
+    first_month = months[0]
+    assert first_month is not None
+    current_year = start.year + (1 if first_month <= start.month else 0)
+    previous_month = 0
+
+    for raw_month in months:
+        assert raw_month is not None
+        if previous_month and raw_month < previous_month:
+            current_year += 1
+        entries.append(_period_payload(current_year, raw_month))
+        previous_month = raw_month
+
+    return entries
+
+
+def _quarterly_period_entries(group: int | None, as_of: date) -> list[dict[str, Any]]:
+    """Return nearby quarterly reporting periods for the given reporting group."""
+
+    months = REPORTING_GROUP_MONTHS.get(group or 0)
+    if months is None:
+        return []
+
+    entries = []
+    for year in range(as_of.year - 1, as_of.year + 2):
+        for month in months:
+            entries.append(_period_payload(year, month))
+    return entries
+
+
+def _latest_period_on_or_before(entries: list[dict[str, Any]], as_of: date) -> dict[str, Any] | None:
+    """Return the latest reporting period whose month starts on or before as_of."""
+
+    latest: dict[str, Any] | None = None
+    for entry in entries:
+        if entry["start_date"] <= as_of.isoformat():
+            latest = entry
+    return latest
+
+
+def _next_period_for(entries: list[dict[str, Any]], as_of: date) -> dict[str, Any] | None:
+    """Return the current or next reporting period relative to as_of."""
+
+    current_month_start = as_of.replace(day=1).isoformat()
+    for entry in entries:
+        if entry["start_date"] >= current_month_start or entry["end_date"] >= as_of.isoformat():
+            return entry
+    return None
+
+
+def _reporting_record(item: Any, *, report_month: date) -> dict[str, Any]:
+    """Build one reporting-schedule record for a podling."""
+
+    status = (item.status or "").lower()
+    cadence = "monthly" if item.reporting_monthly else "quarterly" if item.reporting_group in REPORTING_GROUP_MONTHS else None
+    due_this_month = False
+    latest_expected: dict[str, Any] | None = None
+    next_expected: dict[str, Any] | None = None
+
+    if status == "current" and cadence == "monthly":
+        explicit_periods = _reporting_period_entries(item)
+        schedule_periods = explicit_periods or _monthly_period_entries(item, report_month)
+        due_this_month = any(entry["year"] == report_month.year and entry["month"] == report_month.month for entry in schedule_periods)
+        latest_expected = _latest_period_on_or_before(schedule_periods, report_month)
+        next_expected = _next_period_for(schedule_periods, report_month)
+    elif status == "current" and cadence == "quarterly":
+        quarterly_periods = _quarterly_period_entries(item.reporting_group, report_month)
+        due_this_month = report_month.month in REPORTING_GROUP_MONTHS.get(item.reporting_group or 0, ())
+        latest_expected = _latest_period_on_or_before(quarterly_periods, report_month)
+        next_expected = _next_period_for(quarterly_periods, report_month)
+
+    return {
+        "name": item.name,
+        "status": item.status,
+        "sponsor_type": item.sponsor_type,
+        "reporting_applicable": status == "current" and cadence is not None,
+        "reporting_group": item.reporting_group,
+        "reporting_monthly": item.reporting_monthly,
+        "reporting_periods": item.reporting_periods or [],
+        "expected_cadence": cadence,
+        "latest_expected_report_period_as_of": latest_expected,
+        "next_expected_report_period": next_expected,
+        "due_this_month": due_this_month,
+    }
 
 
 def _build_started_timeline(
@@ -778,6 +974,45 @@ def tool_time_to_retirement_over_time(arguments: dict[str, Any]) -> dict[str, An
     }
 
 
+def tool_reporting_schedule(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Return reporting cadence and next-expected schedule details for podlings."""
+
+    source = resolve_source(arguments)
+    sponsor_type = resolve_sponsor_type(arguments)
+    as_of = _resolve_as_of_date(arguments)
+    report_month = _resolve_report_month(arguments, default_date=as_of)
+    name = optional_string(arguments, "name")
+    due_this_month_filter = arguments.get("due_this_month")
+    if due_this_month_filter is not None and not isinstance(due_this_month_filter, bool):
+        raise ValueError("'due_this_month' must be a boolean")
+
+    podlings, meta = parse_podlings(source)
+    podlings = _filter_podlings(podlings, sponsor_type=sponsor_type)
+
+    if name is None:
+        podlings = [item for item in podlings if (item.status or "").lower() == "current"]
+    else:
+        podlings = [item for item in podlings if item.name.lower() == name.lower()]
+        if not podlings:
+            raise ValueError(f"Podling '{name}' not found")
+
+    records = [_reporting_record(item, report_month=report_month) for item in podlings]
+    total_matching = len(records)
+
+    if due_this_month_filter is not None:
+        records = [record for record in records if record["due_this_month"] is due_this_month_filter]
+
+    return {
+        "source": meta,
+        "as_of_date": as_of.isoformat(),
+        "report_month": f"{report_month.year:04d}-{report_month.month:02d}",
+        "sponsor_type": sponsor_type,
+        "returned": len(records),
+        "total_matching": total_matching,
+        "podlings": records,
+    }
+
+
 def tool_raw_podlings_xml_info(arguments: dict[str, Any]) -> dict[str, Any]:
     """Return source metadata plus a small parsed preview for troubleshooting."""
 
@@ -900,6 +1135,11 @@ TOOLS: dict[str, dict[str, Any]] = {
         description="Return yearly retirement timing stats based on podling start and end dates.",
         handler=tool_time_to_retirement_over_time,
         properties=schemas.timeline_properties(),
+    ),
+    "reporting_schedule": schemas.tool_definition(
+        description="Return expected reporting cadence, due-this-month status, and next expected reporting period for podlings.",
+        handler=tool_reporting_schedule,
+        properties=schemas.reporting_schedule_properties(),
     ),
     "raw_podlings_xml_info": schemas.tool_definition(
         description="Return parsing metadata and a small preview of podlings.xml content.",

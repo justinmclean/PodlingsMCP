@@ -14,6 +14,7 @@ It exposes tools to:
 - analyze yearly completion counts
 - analyze graduation rate over time
 - analyze graduation and retirement duration over time
+- inspect podling reporting cadence and upcoming reporting periods
 
 If `source` is omitted, the server defaults to `https://incubator.apache.org/podlings.xml`.
 
@@ -95,6 +96,7 @@ The package also keeps `apache-podlings-mcp` as a backwards-compatible command a
 - Count and rate timeline tools use podling `enddate` to place outcomes into a year.
 - Duration timeline tools use both `startdate` and `enddate` to calculate months to graduate or retire.
 - `completed_podlings_by_year` returns both lists by default, and the `graduated_podlings_by_year` and `retired_podlings_by_year` tools are convenience wrappers over that same lookup.
+- `reporting_schedule` is schedule-aware, not submission-aware: it answers cadence, due-this-month, and expected-period questions from `podlings.xml` scheduling metadata only.
 
 ## Tools
 
@@ -366,6 +368,21 @@ Arguments:
 
 `source` is optional and defaults to the ASF Incubator `podlings.xml` URL.
 
+### `reporting_schedule`
+
+Return reporting cadence and expected reporting periods for current podlings, or for a specific named podling.
+
+Arguments:
+
+- `source`: URL or local file path
+- `name`: optional exact podling name lookup
+- `as_of_date`: optional ISO date used for schedule evaluation, defaults to today
+- `report_month`: optional reporting month in `YYYY-MM` format; defaults to the active reporting cycle derived from `as_of_date`
+- `due_this_month`: optional boolean filter
+- `sponsor_type`: optional sponsor type filter, defaults to `incubator`
+
+`source` is optional and defaults to the ASF Incubator `podlings.xml` URL.
+
 ## Usage Examples
 
 These examples show natural-language requests an MCP client can answer with the tools below.
@@ -380,6 +397,18 @@ Use these when preparing for a regular review of the active Incubator podling ro
 - "Give me the full podlings.xml record for PodlingFoo."
 
 This gives reviewers a quick view of the active roster, basic metadata coverage, and mentor coverage without needing to inspect `podlings.xml` directly.
+
+### Reporting Workflow
+
+Use these when preparing the monthly IPMC reporting cycle:
+
+- "Which podlings are due to report this month?"
+- "Which podlings are due in the 2026-05 reporting cycle?"
+- "When is PodlingFoo next expected to report?"
+- "Show me the reporting cadence for current Incubator-sponsored podlings."
+
+This gives the IPMC a schedule-oriented view based on `podlings.xml` reporting metadata without needing a separate Clutch-style workflow.
+When `report_month` is omitted, the tool treats the current cycle as running through the third Wednesday of the month, then rolls forward to the next month's cycle.
 
 ### Cohort And Lifecycle Review
 

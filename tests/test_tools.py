@@ -23,11 +23,12 @@ from podlings.tools import (
     tool_podling_stats,
     tool_podlings_started_over_time,
     tool_raw_podlings_xml_info,
+    tool_reporting_schedule,
     tool_retired_podlings_by_year,
     tool_started_podlings_by_year,
     tool_time_to_retirement_over_time,
 )
-from tests.fixtures import GRADUATION_TIMELINE_XML, RETIREMENT_TIMELINE_XML, SAMPLE_XML, temporary_xml_file
+from tests.fixtures import GRADUATION_TIMELINE_XML, REPORTING_XML, RETIREMENT_TIMELINE_XML, SAMPLE_XML, temporary_xml_file
 
 
 class ArgumentHelperTests(unittest.TestCase):
@@ -107,6 +108,108 @@ class ToolTests(unittest.TestCase):
 
         self.assertEqual(result["returned"], 1)
         self.assertEqual(result["podlings"][0]["name"], "ExampleThree")
+
+    def test_reporting_schedule_returns_current_reporting_details(self) -> None:
+        with temporary_xml_file(REPORTING_XML) as xml_path:
+            result = tool_reporting_schedule({"source": xml_path, "as_of_date": "2026-04-25"})
+
+        self.assertEqual(result["returned"], 5)
+        self.assertEqual(result["total_matching"], 5)
+        self.assertEqual(
+            [item["name"] for item in result["podlings"]],
+            ["MonthlyFallback", "MonthlyFresh", "MonthlyStale", "QuarterlyOne", "QuarterlyTwo"],
+        )
+        self.assertEqual(result["report_month"], "2026-05")
+
+        monthly_fallback = result["podlings"][0]
+        self.assertEqual(monthly_fallback["expected_cadence"], "monthly")
+        self.assertTrue(monthly_fallback["due_this_month"])
+        self.assertEqual(monthly_fallback["latest_expected_report_period_as_of"]["label"], "May 2026")
+        self.assertEqual(monthly_fallback["next_expected_report_period"]["label"], "May 2026")
+
+        monthly_fresh = result["podlings"][1]
+        self.assertEqual(monthly_fresh["expected_cadence"], "monthly")
+        self.assertTrue(monthly_fresh["due_this_month"])
+        self.assertEqual(monthly_fresh["next_expected_report_period"]["label"], "May 2026")
+
+        monthly_stale = result["podlings"][2]
+        self.assertIsNone(monthly_stale["next_expected_report_period"])
+
+        quarterly = result["podlings"][3]
+        self.assertEqual(quarterly["expected_cadence"], "quarterly")
+        self.assertFalse(quarterly["due_this_month"])
+        self.assertEqual(quarterly["next_expected_report_period"]["label"], "July 2026")
+
+        quarterly_two = result["podlings"][4]
+        self.assertEqual(quarterly_two["expected_cadence"], "quarterly")
+        self.assertTrue(quarterly_two["due_this_month"])
+        self.assertEqual(quarterly_two["next_expected_report_period"]["label"], "May 2026")
+
+    def test_reporting_schedule_supports_due_filter(self) -> None:
+        with temporary_xml_file(REPORTING_XML) as xml_path:
+            due_result = tool_reporting_schedule({"source": xml_path, "as_of_date": "2026-04-25", "due_this_month": True})
+
+        self.assertEqual(
+            [item["name"] for item in due_result["podlings"]],
+            ["MonthlyFallback", "MonthlyFresh", "QuarterlyTwo"],
+        )
+
+    def test_reporting_schedule_supports_explicit_report_month(self) -> None:
+        with temporary_xml_file(REPORTING_XML) as xml_path:
+            result = tool_reporting_schedule(
+                {"source": xml_path, "as_of_date": "2026-04-25", "report_month": "2026-05", "due_this_month": True}
+            )
+
+        self.assertEqual(result["report_month"], "2026-05")
+        self.assertEqual(
+            [item["name"] for item in result["podlings"]],
+            ["MonthlyFallback", "MonthlyFresh", "QuarterlyTwo"],
+        )
+
+    def test_reporting_schedule_keeps_current_cycle_through_third_wednesday(self) -> None:
+        with temporary_xml_file(REPORTING_XML) as xml_path:
+            result = tool_reporting_schedule({"source": xml_path, "as_of_date": "2026-05-20", "due_this_month": True})
+
+        self.assertEqual(result["report_month"], "2026-05")
+        self.assertEqual(
+            [item["name"] for item in result["podlings"]],
+            ["MonthlyFallback", "MonthlyFresh", "QuarterlyTwo"],
+        )
+
+    def test_reporting_schedule_rolls_forward_after_third_wednesday(self) -> None:
+        with temporary_xml_file(REPORTING_XML) as xml_path:
+            result = tool_reporting_schedule({"source": xml_path, "as_of_date": "2026-05-21", "due_this_month": True})
+
+        self.assertEqual(result["report_month"], "2026-06")
+        self.assertEqual(
+            [item["name"] for item in result["podlings"]],
+            ["MonthlyFallback"],
+        )
+
+    def test_reporting_schedule_stops_monthly_schedule_after_explicit_periods_end(self) -> None:
+        with temporary_xml_file(REPORTING_XML) as xml_path:
+            result = tool_reporting_schedule({"source": xml_path, "report_month": "2026-07", "due_this_month": True})
+
+        self.assertEqual(result["report_month"], "2026-07")
+        self.assertEqual(
+            [item["name"] for item in result["podlings"]],
+            ["MonthlyFallback", "QuarterlyOne"],
+        )
+
+    def test_reporting_schedule_supports_name_lookup(self) -> None:
+        with temporary_xml_file(REPORTING_XML) as xml_path:
+            result = tool_reporting_schedule({"source": xml_path, "name": "QuarterlyOne", "as_of_date": "2026-04-25"})
+
+        self.assertEqual(result["returned"], 1)
+        self.assertEqual(result["podlings"][0]["name"], "QuarterlyOne")
+
+    def test_reporting_schedule_rejects_invalid_date(self) -> None:
+        with self.assertRaisesRegex(ValueError, "'as_of_date' must be an ISO date in YYYY-MM-DD format"):
+            tool_reporting_schedule({"source": str(SAMPLE_XML), "as_of_date": "2026-99-99"})
+
+    def test_reporting_schedule_rejects_invalid_report_month(self) -> None:
+        with self.assertRaisesRegex(ValueError, "'report_month' must be in YYYY-MM format"):
+            tool_reporting_schedule({"source": str(SAMPLE_XML), "report_month": "2026-99"})
 
     def test_list_graduated_podlings_allows_project_override(self) -> None:
         result = tool_list_graduated_podlings({"source": str(SAMPLE_XML), "sponsor_type": "project"})

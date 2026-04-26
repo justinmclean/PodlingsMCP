@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 SOURCE_PROPERTY = {"type": "string", "description": "HTTPS URL or local path to podlings.xml"}
+NAME_PROPERTY = {"type": "string", "description": "Optional exact podling name lookup"}
 SPONSOR_TYPE_PROPERTY = {
     "type": "string",
     "description": "Optional sponsor type filter, defaults to incubator: incubator, project, or unknown",
@@ -20,6 +21,8 @@ COMPLETION_STATUS_PROPERTY = {
     "type": "string",
     "description": "Optional completion status filter: graduated or retired",
 }
+AS_OF_DATE_PROPERTY = {"type": "string", "description": "Optional ISO date used for schedule evaluation, defaults to today"}
+REPORT_MONTH_PROPERTY = {"type": "string", "description": "Optional reporting month in YYYY-MM format"}
 
 
 def input_schema(properties: dict[str, Any], *, required: list[str] | None = None) -> dict[str, Any]:
@@ -85,4 +88,14 @@ def completion_range_properties() -> dict[str, Any]:
     return {
         **base_properties(include_sponsor_type=True, include_year_filters=True),
         "status": COMPLETION_STATUS_PROPERTY,
+    }
+
+
+def reporting_schedule_properties() -> dict[str, Any]:
+    return {
+        **base_properties(include_sponsor_type=True),
+        "name": NAME_PROPERTY,
+        "as_of_date": AS_OF_DATE_PROPERTY,
+        "report_month": REPORT_MONTH_PROPERTY,
+        "due_this_month": {"type": "boolean", "description": "Optional filter to keep only podlings that are due this month"},
     }

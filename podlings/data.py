@@ -32,6 +32,9 @@ class Podling:
     mentors: list[str] | None = None
     startdate: str | None = None
     enddate: str | None = None
+    reporting_group: int | None = None
+    reporting_monthly: bool | None = None
+    reporting_periods: list[str] | None = None
 
 
 def _is_url(value: str) -> bool:
@@ -258,6 +261,31 @@ def _mentors_from_node(node: ET.Element) -> list[str]:
     return []
 
 
+def _parse_reporting_group(value: str | None) -> int | None:
+    """Parse a reporting group value, returning None for invalid input."""
+
+    if value is None or value not in {"1", "2", "3"}:
+        return None
+    return int(value)
+
+
+def _reporting_from_node(node: ET.Element) -> tuple[int | None, bool | None, list[str]]:
+    """Extract reporting metadata from a nested reporting element."""
+
+    for child in list(node):
+        if child.tag.lower() != "reporting":
+            continue
+
+        attrs = {str(key).lower(): _normalize_text(value) for key, value in child.attrib.items()}
+        group = _parse_reporting_group(attrs.get("group"))
+        monthly = attrs.get("monthly")
+        periods_text = _normalize_text(child.text)
+        periods = [part.strip() for part in (periods_text or "").split(",") if part.strip()]
+        return group, monthly == "true", periods
+
+    return None, None, []
+
+
 def _podling_from_node(node: ET.Element) -> Podling | None:
     """Convert a raw XML node into a normalized Podling object."""
 
@@ -269,6 +297,7 @@ def _podling_from_node(node: ET.Element) -> Podling | None:
     description = _text_from_child(node, "description")
     champion = _text_from_child(node, "champion")
     sponsor = attrs.get("sponsor")
+    reporting_group, reporting_monthly, reporting_periods = _reporting_from_node(node)
 
     return Podling(
         name=name,
@@ -281,6 +310,9 @@ def _podling_from_node(node: ET.Element) -> Podling | None:
         mentors=_mentors_from_node(node),
         startdate=attrs.get("startdate"),
         enddate=attrs.get("enddate"),
+        reporting_group=reporting_group,
+        reporting_monthly=reporting_monthly,
+        reporting_periods=reporting_periods,
     )
 
 
