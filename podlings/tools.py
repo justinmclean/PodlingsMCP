@@ -95,11 +95,7 @@ def _resolve_as_of_date(arguments: dict[str, Any]) -> date:
 def _third_wednesday(year: int, month: int) -> date:
     """Return the third Wednesday for the given month."""
 
-    wednesdays = [
-        day
-        for week in calendar.monthcalendar(year, month)
-        if (day := week[calendar.WEDNESDAY]) != 0
-    ]
+    wednesdays = [day for week in calendar.monthcalendar(year, month) if (day := week[calendar.WEDNESDAY]) != 0]
     return date(year, month, wednesdays[2])
 
 
