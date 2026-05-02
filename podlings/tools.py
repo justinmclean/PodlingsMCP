@@ -124,20 +124,29 @@ def _resolve_report_month(arguments: dict[str, Any], *, default_date: date) -> d
 def _resolve_year_filters(arguments: dict[str, Any]) -> tuple[int | None, int | None]:
     """Validate optional inclusive year filters used by timeline tools."""
 
-    start_year = arguments.get("start_year")
-    end_year = arguments.get("end_year")
-    if start_year is not None and not isinstance(start_year, int):
-        raise ValueError("'start_year' must be an integer")
-    if end_year is not None and not isinstance(end_year, int):
-        raise ValueError("'end_year' must be an integer")
+    start_year = _resolve_optional_integer(arguments, "start_year")
+    end_year = _resolve_optional_integer(arguments, "end_year")
+    if start_year is not None and end_year is not None and start_year > end_year:
+        raise ValueError("'start_year' must be less than or equal to 'end_year'")
     return start_year, end_year
 
 
 def _resolve_year(arguments: dict[str, Any], key: str = "year") -> int:
     """Require a single integer year argument."""
 
+    value = _resolve_optional_integer(arguments, key)
+    if value is None:
+        raise ValueError(f"'{key}' must be an integer")
+    return value
+
+
+def _resolve_optional_integer(arguments: dict[str, Any], key: str) -> int | None:
+    """Return an optional integer while rejecting bools and string coercion."""
+
     value = arguments.get(key)
-    if not isinstance(value, int):
+    if value is None:
+        return None
+    if not isinstance(value, int) or isinstance(value, bool):
         raise ValueError(f"'{key}' must be an integer")
     return value
 
@@ -157,15 +166,21 @@ def _resolve_completion_status(arguments: dict[str, Any]) -> str | None:
 def _resolve_required_year_range(arguments: dict[str, Any]) -> tuple[int, int]:
     """Require an inclusive year range and validate the ordering."""
 
-    start_year = arguments.get("start_year")
-    end_year = arguments.get("end_year")
-    if not isinstance(start_year, int):
+    start_year = _resolve_optional_integer(arguments, "start_year")
+    end_year = _resolve_optional_integer(arguments, "end_year")
+    if start_year is None:
         raise ValueError("'start_year' must be an integer")
-    if not isinstance(end_year, int):
+    if end_year is None:
         raise ValueError("'end_year' must be an integer")
     if start_year > end_year:
         raise ValueError("'start_year' must be less than or equal to 'end_year'")
     return start_year, end_year
+
+
+def _resolve_limit(arguments: dict[str, Any]) -> int | None:
+    """Validate an optional result limit."""
+
+    return _resolve_optional_integer(arguments, "limit")
 
 
 def _filter_podlings(
@@ -542,11 +557,7 @@ def tool_list_podlings(arguments: dict[str, Any]) -> dict[str, Any]:
     status = optional_string(arguments, "status")
     sponsor_type = resolve_sponsor_type(arguments)
     search = optional_string(arguments, "search")
-    raw_limit = arguments.get("limit")
-    if raw_limit is None:
-        limit: int | None = None
-    else:
-        limit = int(raw_limit)
+    limit = _resolve_limit(arguments)
 
     podlings, meta = parse_podlings(source)
 

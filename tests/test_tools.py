@@ -92,6 +92,12 @@ class ToolTests(unittest.TestCase):
         self.assertEqual(result["returned"], 1)
         self.assertEqual(result["total_matching"], 2)
 
+    def test_list_podlings_rejects_non_integer_limit(self) -> None:
+        with self.assertRaisesRegex(ValueError, "'limit' must be an integer"):
+            tool_list_podlings({"source": str(SAMPLE_XML), "limit": "1"})
+        with self.assertRaisesRegex(ValueError, "'limit' must be an integer"):
+            tool_list_podlings({"source": str(SAMPLE_XML), "limit": True})
+
     def test_list_current_podlings_returns_current_only(self) -> None:
         result = tool_list_current_podlings({"source": str(SAMPLE_XML)})
 
@@ -336,6 +342,10 @@ class ToolTests(unittest.TestCase):
             tool_graduation_rate_over_time({"source": str(SAMPLE_XML), "start_year": "2024"})
         with self.assertRaisesRegex(ValueError, "'end_year' must be an integer"):
             tool_graduation_rate_over_time({"source": str(SAMPLE_XML), "end_year": "2024"})
+        with self.assertRaisesRegex(ValueError, "'start_year' must be an integer"):
+            tool_graduation_rate_over_time({"source": str(SAMPLE_XML), "start_year": True})
+        with self.assertRaisesRegex(ValueError, "'start_year' must be less than or equal to 'end_year'"):
+            tool_graduation_rate_over_time({"source": str(SAMPLE_XML), "start_year": 2025, "end_year": 2024})
 
     def test_graduation_rate_over_time_allows_project_override(self) -> None:
         result = tool_graduation_rate_over_time({"source": str(SAMPLE_XML), "sponsor_type": "project"})
